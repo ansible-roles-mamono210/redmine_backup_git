@@ -1,0 +1,14 @@
+---
+dependencies: []
+galaxy_info:
+  author: mamono210
+  company: no name
+  description: Archieve Redmine git data.
+  galaxy_tags: []
+  license: "license (BSD, MIT)"
+  min_ansible_version: 8.0.0
+  role_name: redmine_backup_git
+  platforms:
+    - name: EL
+      release:
+        - 8
