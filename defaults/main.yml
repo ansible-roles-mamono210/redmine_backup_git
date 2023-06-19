@@ -6,4 +6,4 @@ redmine_backup_data_dir: /tmp/redmine-backup
 redmine_git_dir: /var/git
 
 # Git archive data file
-redmine_git_archive_file: git.tar.gz
+redmine_archived_git_file: git.tar.gz
