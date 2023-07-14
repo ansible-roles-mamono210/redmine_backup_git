@@ -11,7 +11,7 @@
     state: absent
 
 - name: Archive Git repositories
-  community.general.files.archive:
+  community.general.archive:
     path: "{{ redmine_git_dir }}"
     dest: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
     mode: 0755
