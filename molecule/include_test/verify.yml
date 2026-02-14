@@ -1,0 +1,75 @@
+---
+- name: Verify (include only)
+  gather_facts: false
+  hosts: all
+
+  vars:
+    archive_path: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
+    expected_include_dirs: "{{ redmine_git_include_dirs }}"
+
+  tasks:
+    - name: Check archive exists
+      ansible.builtin.stat:
+        path: "{{ archive_path }}"
+      register: archive_stat
+
+    - name: Make sure archive exists and not empty
+      ansible.builtin.assert:
+        that:
+          - archive_stat.stat.exists
+          - (archive_stat.stat.size | int) > 0
+
+    - name: List archive contents (tar -tzf)
+      ansible.builtin.command: "tar -tzf {{ archive_path }}"
+      register: tar_list
+      changed_when: false
+
+    - name: Normalize tar list (strip leading './' and leading '/')
+      ansible.builtin.set_fact:
+        tar_paths: >-
+          {{
+            tar_list.stdout_lines
+            | map('regex_replace', '^\\./', '')
+            | map('regex_replace', '^/', '')
+            | list
+          }}
+
+    - name: Normalize expected include dirs
+      ansible.builtin.set_fact:
+        expected_full_prefixes: >-
+          {{
+            expected_include_dirs
+            | map('regex_replace', '/+$', '')
+            | map('regex_replace', '^/', '')
+            | map('regex_replace', '^\\./', '')
+            | map('regex_replace', '$', '/')
+            | list
+          }}
+        expected_base_prefixes: >-
+          {{
+            expected_include_dirs
+            | map('regex_replace', '/+$', '')
+            | map('basename')
+            | map('regex_replace', '$', '/')
+            | list
+          }}
+
+    - name: Debug first 50 tar paths
+      ansible.builtin.debug:
+        msg: "{{ tar_paths[:50] }}"
+
+    - name: Ensure each expected include dir has entries in archive (full OR basename)
+      ansible.builtin.assert:
+        that:
+          - >-
+            {{
+              (tar_paths | select('match', '^' ~ expected_full_prefixes[idx]) | list | length) > 0
+              or
+              (tar_paths | select('match', '^' ~ expected_base_prefixes[idx]) | list | length) > 0
+            }}
+        fail_msg: >-
+          Expected include dir is missing (or empty) in archive.
+          full={{ expected_full_prefixes[idx] }}, base={{ expected_base_prefixes[idx] }}
+      loop: "{{ range(0, expected_include_dirs | length) | list }}"
+      loop_control:
+        index_var: idx

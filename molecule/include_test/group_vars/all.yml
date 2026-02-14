@@ -1,0 +1,7 @@
+---
+redmine_git_include_dirs:
+  - /var/git/ansible
+  - /var/git/aws
+redmine_backup_data_dir: /tmp/redmine-backup
+redmine_archived_git_file: git.tar.gz
+redmine_git_exclude_dirs: []

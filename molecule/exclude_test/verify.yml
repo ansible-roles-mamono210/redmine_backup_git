@@ -1,0 +1,75 @@
+---
+- name: Verify (exclude only)
+  gather_facts: false
+  hosts: all
+
+  vars:
+    archive_path: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
+    expected_exclude_dirs: "{{ redmine_git_exclude_dirs }}"
+
+  tasks:
+    - name: Check archive exists
+      ansible.builtin.stat:
+        path: "{{ archive_path }}"
+      register: archive_stat
+
+    - name: Make sure archive exists and not empty
+      ansible.builtin.assert:
+        that:
+          - archive_stat.stat.exists
+          - (archive_stat.stat.size | int) > 0
+
+    - name: List archive contents (tar -tzf)
+      ansible.builtin.command: "tar -tzf {{ archive_path }}"
+      register: tar_list
+      changed_when: false
+
+    - name: Normalize tar list (strip leading './' and leading '/')
+      ansible.builtin.set_fact:
+        tar_paths: >-
+          {{
+            tar_list.stdout_lines
+            | map('regex_replace', '^\\./', '')
+            | map('regex_replace', '^/', '')
+            | list
+          }}
+
+    - name: Normalize expected exclude dirs (full + basename prefixes)
+      ansible.builtin.set_fact:
+        exclude_full_prefixes: >-
+          {{
+            expected_exclude_dirs
+            | map('regex_replace', '/+$', '')
+            | map('regex_replace', '^/', '')
+            | map('regex_replace', '^\\./', '')
+            | map('regex_replace', '$', '/')
+            | list
+          }}
+        exclude_base_prefixes: >-
+          {{
+            expected_exclude_dirs
+            | map('regex_replace', '/+$', '')
+            | map('basename')
+            | map('regex_replace', '$', '/')
+            | list
+          }}
+
+    - name: Debug first 50 tar paths
+      ansible.builtin.debug:
+        msg: "{{ tar_paths[:50] }}"
+
+    - name: Ensure each expected exclude dir is NOT present in archive (full OR basename)
+      ansible.builtin.assert:
+        that:
+          - >-
+            {{
+              (tar_paths | select('match', '^' ~ exclude_full_prefixes[idx]) | list | length) == 0
+              and
+              (tar_paths | select('match', '^' ~ exclude_base_prefixes[idx]) | list | length) == 0
+            }}
+        fail_msg: >-
+          Excluded dir was found in archive.
+          full={{ exclude_full_prefixes[idx] }}, base={{ exclude_base_prefixes[idx] }}
+      loop: "{{ range(0, expected_exclude_dirs | length) | list }}"
+      loop_control:
+        index_var: idx

@@ -1,0 +1,21 @@
+---
+- name: Side effect
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install EPEL
+      ansible.builtin.include_role:
+        name: mamono210.epel
+
+    - name: Install boto3
+      ansible.builtin.include_role:
+        name: mamono210.aws_bootstrap
+
+    - name: Copy archived Git data file to S3
+      ansible.builtin.include_role:
+        name: mamono210.aws_s3_cp
+      vars:
+        s3_bucket: mamono210
+        s3_object_name: "ansible-roles-mamono210/redmine_backup_git/default/{{ redmine_archived_git_file }}"
+        upload_file_path: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"

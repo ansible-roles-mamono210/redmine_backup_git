@@ -1,8 +1,8 @@
 ---
 - name: Create working directory
   ansible.builtin.file:
-    path: '{{ redmine_backup_data_dir }}'
-    recurse: yes
+    path: "{{ redmine_backup_data_dir }}"
+    recurse: true
     state: directory
 
 - name: If previous data remains, delete the data
@@ -10,8 +10,101 @@
     path: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
     state: absent
 
-- name: Archive Git repositories
+- name: Validate include dirs exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: _git_includes
+  loop: "{{ redmine_git_include_dirs }}"
+
+- name: Fail if any include dir is missing
+  ansible.builtin.assert:
+    that:
+      - _git_includes.results | rejectattr('stat.exists', 'equalto', true) | list | length == 0
+    fail_msg: >-
+      Some include dirs do not exist:
+      {{
+        _git_includes.results
+        | rejectattr('stat.exists', 'equalto', true)
+        | map(attribute='stat.path')
+        | list
+      }}
+
+- name: Classify include dirs
+  ansible.builtin.set_fact:
+    _include_expand_roots: >-
+      {{
+        redmine_git_include_dirs
+        | map('regex_replace', '/+$', '')
+        | select('equalto', '/var/git')
+        | list
+      }}
+    _include_direct: >-
+      {{
+        redmine_git_include_dirs
+        | map('regex_replace', '/+$', '')
+        | reject('equalto', '/var/git')
+        | list
+      }}
+
+- name: Expand include roots (direct subdirs)
+  ansible.builtin.find:
+    paths: "{{ item }}"
+    file_type: directory
+    depth: 1
+  register: _include_expanded
+  loop: "{{ _include_expand_roots }}"
+  when: _include_expand_roots | length > 0
+
+- name: Build expanded include list
+  ansible.builtin.set_fact:
+    _include_expanded_list: >-
+      {{
+        (
+          (_include_expanded.results | default([]))
+          | map(attribute='files')
+          | flatten
+          | map(attribute='path')
+          | list
+        )
+        if (_include_expand_roots | length > 0)
+        else []
+      }}
+
+- name: Build archive targets (expanded + direct)
+  ansible.builtin.set_fact:
+    _archive_targets_raw: "{{ _include_expanded_list + _include_direct }}"
+
+# --- exclude 適用 ---
+- name: Normalize exclude dirs
+  ansible.builtin.set_fact:
+    _exclude_dirs_norm: >-
+      {{
+        redmine_git_exclude_dirs | default([])
+        | map('regex_replace', '/+$', '')
+        | list
+      }}
+
+- name: Apply excludes to archive targets
+  ansible.builtin.set_fact:
+    _archive_targets: >-
+      {{
+        _archive_targets_raw
+        | map('regex_replace', '/+$', '')
+        | reject('in', _exclude_dirs_norm)
+        | list
+      }}
+
+- name: Show archive plan (expanded)
+  ansible.builtin.debug:
+    msg:
+      - "Archive dest: {{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
+      - "Include dirs: {{ redmine_git_include_dirs }}"
+      - "Expanded from: {{ _include_expand_roots }}"
+      - "Archive targets (expanded): {{ _archive_targets }}"
+      - "Exclude dirs: {{ _exclude_dirs_norm }}"
+
+- name: Archive Git repositories (include/exclude)
   community.general.archive:
-    path: "{{ redmine_git_dir }}"
+    path: "{{ _archive_targets }}"
     dest: "{{ redmine_backup_data_dir }}/{{ redmine_archived_git_file }}"
-    mode: 0755
+    mode: "0755"

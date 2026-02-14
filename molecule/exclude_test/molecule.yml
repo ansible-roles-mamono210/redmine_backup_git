@@ -60,7 +60,6 @@ scenario:
     - destroy
     - syntax
     - create
-    - prepare
     - converge
     - side_effect
     - verify

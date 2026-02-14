@@ -82,10 +82,34 @@ workflows:
           aws-ami-name: 'redmica_restore_centos-stream9-1*'
           aws-ami-owner-id: '808683561341'
           aws-instance-type: 't2.medium'
-          aws-resource-name: 'circleci_ansible-roles_rm_bk_git_cs9'
+          aws-resource-name: 'circleci_ansible-roles_rm_bk_git_cs9_df'
           aws-vpc-subnet-id: 'subnet-022a704b3061b8b39'
           circleci-timeout: '40m'
           molecule-scenario-name: 'default'
+          context: 'aws-oidc'
+          requires:
+            - ansible-lint
+      - molecule-ec2:
+          ansible-user: 'ec2-user'
+          aws-ami-name: 'redmica_restore_centos-stream9-1*'
+          aws-ami-owner-id: '808683561341'
+          aws-instance-type: 't2.medium'
+          aws-resource-name: 'circleci_ansible-roles_rm_bk_git_cs9_ex'
+          aws-vpc-subnet-id: 'subnet-022a704b3061b8b39'
+          circleci-timeout: '40m'
+          molecule-scenario-name: 'exclude_test'
+          context: 'aws-oidc'
+          requires:
+            - ansible-lint
+      - molecule-ec2:
+          ansible-user: 'ec2-user'
+          aws-ami-name: 'redmica_restore_centos-stream9-1*'
+          aws-ami-owner-id: '808683561341'
+          aws-instance-type: 't2.medium'
+          aws-resource-name: 'circleci_ansible-roles_rm_bk_git_cs9_in'
+          aws-vpc-subnet-id: 'subnet-022a704b3061b8b39'
+          circleci-timeout: '40m'
+          molecule-scenario-name: 'include_test'
           context: 'aws-oidc'
           requires:
             - ansible-lint

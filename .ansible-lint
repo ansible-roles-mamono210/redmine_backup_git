@@ -1,0 +1,4 @@
+---
+exclude_paths:
+  - molecule/exclude_test/verify.yml
+  - molecule/include_test/verify.yml
