@@ -16,18 +16,22 @@
   register: _git_includes
   loop: "{{ redmine_git_include_dirs }}"
 
-- name: Fail if any include dir is missing
-  ansible.builtin.assert:
-    that:
-      - _git_includes.results | rejectattr('stat.exists', 'equalto', true) | list | length == 0
-    fail_msg: >-
-      Some include dirs do not exist:
+- name: Build missing include dirs list
+  ansible.builtin.set_fact:
+    _missing_include_dirs: >-
       {{
         _git_includes.results
         | rejectattr('stat.exists', 'equalto', true)
-        | map(attribute='stat.path')
+        | map(attribute='item')
         | list
       }}
+
+- name: Fail if any include dir is missing
+  ansible.builtin.assert:
+    that:
+      - _missing_include_dirs | length == 0
+    fail_msg: >-
+      Some include dirs do not exist: {{ _missing_include_dirs }}
 
 - name: Classify include dirs
   ansible.builtin.set_fact:
@@ -50,7 +54,7 @@
   ansible.builtin.find:
     paths: "{{ item }}"
     file_type: directory
-    depth: 1
+    recurse: false
   register: _include_expanded
   loop: "{{ _include_expand_roots }}"
   when: _include_expand_roots | length > 0
@@ -102,6 +106,18 @@
       - "Expanded from: {{ _include_expand_roots }}"
       - "Archive targets (expanded): {{ _archive_targets }}"
       - "Exclude dirs: {{ _exclude_dirs_norm }}"
+
+- name: Fail if archive targets are empty
+  ansible.builtin.assert:
+    that:
+      - _archive_targets | length > 0
+    fail_msg: >-
+      No archive targets found.
+      Include dirs={{ redmine_git_include_dirs }},
+      expanded_from={{ _include_expand_roots }},
+      expanded={{ _include_expanded_list | default([]) }},
+      direct={{ _include_direct }},
+      exclude={{ _exclude_dirs_norm }}
 
 - name: Archive Git repositories (include/exclude)
   community.general.archive:
